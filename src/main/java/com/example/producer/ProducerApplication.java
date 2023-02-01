@@ -8,12 +8,18 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.integration.dsl.IntegrationFlow;
+import org.springframework.integration.dsl.MessageChannels;
+import org.springframework.integration.kafka.dsl.Kafka;
+import org.springframework.integration.kafka.outbound.KafkaProducerMessageHandler;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
 import org.springframework.kafka.support.converter.JsonMessageConverter;
 import org.springframework.kafka.support.serializer.JsonSerializer;
 import org.springframework.messaging.Message;
+import org.springframework.messaging.MessageChannel;
+import org.springframework.messaging.support.MessageBuilder;
 
 import java.util.Map;
 import java.util.Random;
@@ -38,6 +44,14 @@ class RunnerConfiguration {
         template.send(ProducerApplication.PAGE_VIEWS_TOPIC, pageView);
     }
 
+    void integration(MessageChannel channel) {
+        var message = MessageBuilder
+                .withPayload(random("integration"))
+//                .copyHeadersIfAbsent(Map.of(KafkaHeaders.TOPIC, PAGE_VIEWS_TOPIC))
+                .build();
+        channel.send(message);
+    }
+
     private Object random(String source) {
         var names = "shamoiev,ponomar,wopopalo,mama,baba".split(",");
         var pages = "blog.html,about.html,contact.html,news.html,index.html".split(",");
@@ -48,17 +62,40 @@ class RunnerConfiguration {
     }
 
     @Bean
-    ApplicationListener<ApplicationReadyEvent> runnerListener(KafkaTemplate<Object, Object> template) {
-        return new ApplicationListener<ApplicationReadyEvent>() {
-            @Override
-            public void onApplicationEvent(ApplicationReadyEvent event) {
-                kafka(template);
-            }
+    ApplicationListener<ApplicationReadyEvent> runnerListener(KafkaTemplate<Object, Object> template,
+                                                              MessageChannel channel) {
+        return event -> {
+//            kafka(template);
+            integration(channel);
         };
     }
 }
 
-/* Kafka configuration */
+@Configuration
+class IntegrationConfiguration {
+
+    /*Heart of Integration*/
+    @Bean
+    IntegrationFlow flow(MessageChannel channel, KafkaTemplate<Object, Object> template) {
+        /*when the message arrives in this channel*/
+        KafkaProducerMessageHandler<Object, Object> kafka = Kafka
+                .outboundChannelAdapter(template)
+                .topic(PAGE_VIEWS_TOPIC)
+                .get();
+
+        return IntegrationFlow
+                .from(channel)
+                .handle(kafka)
+                .get();
+    }
+
+    /* Message arrives in this channel */
+    @Bean
+    MessageChannel channel() {
+        return MessageChannels.direct().get();
+    }
+}
+
 @Configuration
 class KafkaConfiguration {
 
