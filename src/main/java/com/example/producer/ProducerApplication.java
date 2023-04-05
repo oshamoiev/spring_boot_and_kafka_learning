@@ -34,7 +34,7 @@ public class ProducerApplication {
         SpringApplication.run(ProducerApplication.class, args);
     }
 
-    public static final String PAGE_VIEWS_TOPIC = "pv_topic1";
+    public static final String PAGE_VIEWS_TOPIC = "pv_topic";
 }
 
 @Configuration
@@ -68,11 +68,14 @@ class RunnerConfiguration {
 
     @Bean
     ApplicationListener<ApplicationReadyEvent> runnerListener(KafkaTemplate<Object, Object> template,
-                                                              MessageChannel channel, StreamBridge streamBridge) {
+            MessageChannel channel, StreamBridge streamBridge) {
         return event -> {
-//            kafka(template);
-//            integration(channel);
-            stream(streamBridge);
+            for (int i = 0; i < 1000; i++) {
+                kafka(template);
+                integration(channel);
+                stream(streamBridge);
+
+            }
         };
     }
 }
